@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auxilium</title>
+<meta name="description" content="Garuda drones search disaster zones on their own. A responder confirms who needs help. The drone drops the supplies.">
+<link rel="icon" href="./assets/auxilium-icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+/* Palette comes from the Auxilium logo (navy + teal). Amber is the one accent: it only ever marks a person the drone has found. */
+:root{
+  --night:#0B1424;
+  --deep:#111E33;
+  --line:#22344F;
+  --contour:#1A2A42;
+  --teal:#1FB5B0;
+  --teal-soft:#6FD6D1;
+  --paper:#F2F5F7;
+  --slate:#A3B4C6;
+  --heat:#F4A53C;
+  --display:"Montserrat",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --gutter:clamp(16px,4vw,48px);
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--night);color:var(--paper);font-family:var(--body);font-size:17px;line-height:1.6;overflow-x:hidden}
+img,svg{display:block;max-width:100%}
+a{color:inherit}
+a[href],button{cursor:pointer}
+button:disabled{cursor:not-allowed}
+:focus-visible{outline:2px solid var(--teal-soft);outline-offset:3px;border-radius:4px}
+h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-.025em}
+p{margin:0}
+.wrap{max-width:1240px;margin:0 auto;padding:0 var(--gutter)}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* Buttons */
+.btn{font:600 15px/1 var(--body);display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;border-radius:8px;border:1px solid transparent;text-decoration:none;transition:background-color .18s ease,color .18s ease,border-color .18s ease,transform .12s ease}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--teal);color:var(--night)}
+.btn-primary:hover{background:var(--teal-soft)}
+.btn-ghost{background:transparent;color:var(--paper);border-color:#3A5070}
+.btn-ghost:hover{border-color:var(--teal);color:var(--teal-soft)}
+
+/* Nav */
+.nav{position:fixed;inset:0 0 auto 0;z-index:50;transition:background-color .3s ease,border-color .3s ease;border-bottom:1px solid transparent}
+.nav.solid{background:rgba(11,20,36,.92);border-color:var(--line);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;height:68px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.brand img{width:38px;height:38px}
+.brand span{font-family:var(--display);font-weight:600;font-size:16px;letter-spacing:.16em}
+.nav-links{display:flex;align-items:center;gap:28px;font-size:15px;font-weight:500}
+.nav-links a:not(.btn){text-decoration:none;color:var(--slate);padding:12px 0;transition:color .15s ease}
+.nav-links a:not(.btn):hover{color:var(--paper)}
+.menu-btn{display:none}
+@media (max-width:760px){
+  .menu-btn{display:inline-flex}
+  .nav-links{display:none;position:absolute;top:68px;left:0;right:0;flex-direction:column;align-items:stretch;gap:0;padding:8px var(--gutter) 20px;background:var(--night);border-bottom:1px solid var(--line)}
+  .nav-links.open{display:flex}
+  .nav-links a:not(.btn){padding:14px 0;border-bottom:1px solid var(--line)}
+  .nav-links .btn{margin-top:14px}
+}
+
+/* ---------- Hero mission (pinned scroll story) ---------- */
+.mission{position:relative;height:420vh}
+.stage{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden}
+.stage svg.map{position:absolute;inset:0;width:100%;height:100%}
+.scrim{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(11,20,36,.92) 0%,rgba(11,20,36,.55) 38%,rgba(11,20,36,0) 62%)}
+@media (max-width:760px){.scrim{background:linear-gradient(0deg,rgba(11,20,36,.96) 0%,rgba(11,20,36,.8) 38%,rgba(11,20,36,0) 62%)}}
+.panels{position:absolute;left:0;right:0;bottom:0;top:68px;pointer-events:none}
+.panel{position:absolute;left:var(--gutter);bottom:clamp(56px,12vh,120px);max-width:min(620px,calc(100% - 2*var(--gutter)));opacity:0;transform:translateY(24px);transition:opacity .5s var(--ease),transform .6s var(--ease)}
+.panel.on{opacity:1;transform:none;pointer-events:auto}
+.panel[data-phase="0"]{max-width:min(980px,calc(100% - 2*var(--gutter)))}
+.panel h1{font-weight:800;font-size:clamp(44px,7.4vw,104px);line-height:.96;letter-spacing:-.04em}
+.panel h1 .ln{display:block;overflow:hidden;padding-bottom:.06em}
+.panel h1 .ln span{display:block}
+.panel .lede{margin-top:22px;font-size:clamp(17px,1.6vw,20px);color:var(--slate);max-width:470px}
+.panel h2{font-weight:800;font-size:clamp(56px,9vw,128px);line-height:.9;letter-spacing:-.045em}
+.panel h2 + p{margin-top:18px;font-size:clamp(17px,1.6vw,21px);max-width:440px;color:var(--paper)}
+.cue{margin-top:34px;display:flex;align-items:center;gap:12px;font-size:14px;color:var(--slate)}
+.cue i{display:block;width:56px;height:1px;background:var(--teal);transform-origin:left}
+.phase-nav{position:absolute;right:var(--gutter);top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px;z-index:3}
+.phase-nav button{all:unset;cursor:pointer;display:flex;align-items:center;justify-content:flex-end;gap:12px;min-height:44px;font:600 15px var(--display);color:var(--slate);transition:color .2s ease}
+.phase-nav button::after{content:"";width:22px;height:2px;background:currentColor;transition:width .3s var(--ease)}
+.phase-nav button:hover{color:var(--paper)}
+.phase-nav button[aria-current="step"]{color:var(--teal-soft)}
+.phase-nav button[aria-current="step"]::after{width:48px}
+.phase-nav button:focus-visible{outline:2px solid var(--teal-soft);outline-offset:4px}
+@media (max-width:760px){
+  .phase-nav{top:84px;transform:none;right:auto;left:var(--gutter);flex-direction:row;gap:18px}
+  .phase-nav button::after{display:none}
+  .phase-nav button[aria-current="step"]{text-decoration:underline;text-underline-offset:6px;text-decoration-thickness:2px}
+}
+.snap{position:absolute;right:calc(var(--gutter) + 150px);top:22%;width:min(300px,42vw);background:var(--deep);border:1px solid var(--line);border-radius:10px;overflow:hidden;opacity:0;transform:translateY(16px) scale(.97);transition:opacity .45s var(--ease),transform .5s var(--ease);box-shadow:0 30px 60px rgba(0,0,0,.45)}
+.snap.on{opacity:1;transform:none}
+.snap figcaption{padding:12px 14px;font-size:14px;line-height:1.45}
+.snap figcaption b{display:block;font-weight:600}
+.snap figcaption span{color:var(--slate)}
+.snap .status{display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:600;color:var(--heat)}
+.snap .status.ok{color:var(--teal-soft)}
+@media (max-width:760px){.snap{right:var(--gutter);top:130px;width:230px}.snap figcaption > span{display:none}}
+@media (max-width:420px){.snap{width:200px}}
+
+/* ---------- Demo ---------- */
+.demo{padding:clamp(96px,14vw,180px) 0 clamp(80px,10vw,140px)}
+.demo-grid{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,8fr);gap:clamp(28px,5vw,72px);align-items:start}
+@media (max-width:900px){.demo-grid{grid-template-columns:1fr}}
+.demo h2{font-size:clamp(34px,3.8vw,52px);line-height:1;font-weight:800}
+.demo-intro{margin-top:20px;color:var(--slate);max-width:400px}
+.tally{display:grid;grid-template-columns:repeat(3,auto);justify-content:start;gap:8px 32px;margin-top:40px}
+.tally dt{font-size:14px;color:var(--slate)}
+.tally dd{margin:0;font-family:var(--display);font-weight:700;font-size:44px;line-height:1;font-variant-numeric:tabular-nums;grid-row:1}
+.tally dd.found{color:var(--heat)}
+.tally div{display:flex;flex-direction:column-reverse;gap:6px}
+.demo-tools{margin-top:32px;display:flex;flex-wrap:wrap;gap:10px}
+.screen{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--deep)}
+.screen svg{width:100%;height:auto;aspect-ratio:16/10}
+.console{border-top:1px solid var(--line);padding:16px;min-height:132px;display:flex;align-items:center}
+.console > div{width:100%}
+.ask{display:grid;grid-template-columns:120px 1fr;gap:16px;align-items:center;animation:slide .35s var(--ease) both}
+.ask svg{width:120px;height:90px;border-radius:6px;aspect-ratio:auto}
+.ask b{display:block;font-size:14px;color:var(--heat);font-weight:600}
+.ask strong{display:block;font-family:var(--display);font-size:20px;line-height:1.2;margin-top:2px}
+.ask small{display:block;font-size:14px;color:var(--slate);margin-top:2px}
+.ask .acts{grid-column:1 / -1;display:flex;gap:10px;flex-wrap:wrap}
+.ask .acts .btn{flex:1 1 180px}
+.idle{display:flex;align-items:center;gap:14px;animation:slide .35s var(--ease) both}
+.idle .sweep{flex:0 0 36px;height:36px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--teal);animation:spin 1.2s linear infinite}
+.idle b{display:block;font-size:14px;color:var(--slate);font-weight:500}
+.idle strong{font-family:var(--display);font-size:18px;font-weight:600}
+.done{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;animation:slide .35s var(--ease) both}
+.done strong{font-family:var(--display);font-size:20px;line-height:1.3;max-width:440px}
+.done b{display:block;font-size:14px;color:var(--teal-soft);font-weight:600}
+@media (max-width:520px){.ask{grid-template-columns:96px 1fr}.ask svg{width:96px;height:72px}}
+@keyframes slide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.mk-pop{transform-box:fill-box;transform-origin:center;animation:pop .45s cubic-bezier(.2,.8,.3,1.4) both}
+@keyframes pop{0%{transform:scale(0) rotate(45deg)}70%{transform:scale(1.25) rotate(45deg)}100%{transform:scale(1) rotate(45deg)}}
+.mk-ping{transform-box:fill-box;transform-origin:center;animation:ping 1.6s ease-out infinite}
+@keyframes ping{0%{transform:scale(.4);opacity:1}100%{transform:scale(2.4);opacity:0}}
+
+/* ---------- Product ---------- */
+.product{padding:clamp(80px,10vw,140px) 0}
+.product-head{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:24px 64px;align-items:end}
+@media (max-width:860px){.product-head{grid-template-columns:1fr}}
+.product h2{font-size:clamp(40px,6vw,84px);line-height:.98;font-weight:800}
+.product-head p{color:var(--slate);max-width:460px}
+.tilt{margin-top:56px;perspective:1400px}
+.shot{position:relative;margin:0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--deep);transform-origin:50% 0;will-change:transform}
+.shot img{width:100%;height:auto}
+.pin{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;background:var(--heat);color:var(--night);font:700 14px/30px var(--display);text-align:center;box-shadow:0 0 0 5px rgba(244,165,60,.25);opacity:0;transform:scale(.4);transition:opacity .3s ease,transform .4s cubic-bezier(.2,.8,.3,1.4)}
+.pin.on{opacity:1;transform:none}
+.notes{list-style:none;margin:28px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px 40px}
+@media (max-width:860px){.notes{grid-template-columns:1fr}}
+.notes li{display:grid;grid-template-columns:30px 1fr;gap:14px;align-items:start;font-size:16px;color:var(--slate)}
+.notes li i{font:normal 700 14px/30px var(--display);width:30px;height:30px;border-radius:50%;text-align:center;border:1px solid var(--heat);color:var(--heat)}
+.capab{margin-top:72px;display:grid;grid-template-columns:minmax(0,4fr) minmax(0,8fr);gap:24px 64px}
+@media (max-width:860px){.capab{grid-template-columns:1fr}}
+.capab h3{font-size:24px;font-weight:700;line-height:1.2}
+.capab ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:40px}
+@media (max-width:560px){.capab ul{grid-template-columns:1fr}}
+.capab li{padding:14px 0;border-top:1px solid var(--line);font-weight:500}
+
+/* ---------- Team ---------- */
+.team{padding:clamp(100px,12vw,180px) 0 clamp(80px,10vw,140px);border-top:1px solid var(--line)}
+.giant{font-family:var(--display);font-weight:800;font-size:clamp(52px,11.5vw,176px);line-height:.92;letter-spacing:-.05em;margin:0}
+.giant .ln{display:block;overflow:hidden;padding-bottom:.05em}
+.giant .ln span{display:block;transition:transform 1s var(--ease)}
+.giant .ln + .ln span{transition-delay:.12s;color:var(--teal)}
+.giant.pre .ln span{transform:translateY(105%)}
+.team-body{margin-top:64px;display:grid;grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:48px 80px}
+@media (max-width:860px){.team-body{grid-template-columns:1fr}}
+.team-body > p{font-size:clamp(18px,1.8vw,22px);line-height:1.55;max-width:560px}
+.people{display:flex;flex-direction:column;gap:22px}
+.person{display:flex;align-items:center;gap:16px}
+.avatar{flex:0 0 56px;height:56px;border-radius:50%;background:var(--deep);border:1px solid #2F5B66;color:var(--teal-soft);display:flex;align-items:center;justify-content:center;font:700 20px var(--display)}
+.person strong{display:block;font-family:var(--display);font-size:18px}
+.person span{font-size:15px;color:var(--slate)}
+.stack{margin-top:22px;padding-top:22px;border-top:1px solid var(--line);font-size:15px;color:var(--slate)}
+.stack b{color:var(--paper);font-weight:600}
+
+/* ---------- Contact ---------- */
+.contact{padding:clamp(100px,13vw,190px) 0;border-top:1px solid var(--line);position:relative;overflow:hidden}
+.contact h2{font-size:clamp(34px,4.6vw,60px);line-height:1.05;font-weight:800;max-width:780px}
+.contact p{margin-top:18px;color:var(--slate);max-width:520px;font-size:18px}
+.mail{display:inline-block;margin-top:48px;font-family:var(--display);font-weight:700;font-size:clamp(22px,4.6vw,68px);letter-spacing:-.035em;line-height:1.1;text-decoration:none;color:var(--paper);background:linear-gradient(var(--teal),var(--teal)) 0 100%/0 4px no-repeat;padding-bottom:8px;transition:background-size .5s var(--ease),color .2s ease;overflow-wrap:anywhere}
+.mail:hover,.mail:focus-visible{background-size:100% 4px;color:var(--teal-soft)}
+.contact-actions{margin-top:28px;display:flex;flex-wrap:wrap;gap:10px}
+
+footer{border-top:1px solid var(--line)}
+.foot{display:flex;flex-wrap:wrap;gap:14px 24px;justify-content:space-between;align-items:center;padding-top:26px;padding-bottom:26px;font-size:14px;color:var(--slate)}
+.foot .brand img{width:28px;height:28px}
+.foot .brand span{font-size:14px}
+
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;transition-delay:0s !important}
+  .giant.pre .ln span{transform:none}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav" id="nav" aria-label="Main">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="Auxilium Technologies, back to top">
+      <img src="./assets/auxilium-icon.svg" alt="" width="38" height="38">
+      <span>AUXILIUM</span>
+    </a>
+    <button class="btn btn-ghost menu-btn" type="button" id="menuBtn" aria-expanded="false" aria-controls="navLinks">Menu</button>
+    <div class="nav-links" id="navLinks">
+      <a href="#mission">The mission</a>
+      <a href="#demo">Try it</a>
+      <a href="#product">Ground control</a>
+      <a href="#team">Team</a>
+      <a class="btn btn-primary" href="#contact">Contact us</a>
+    </div>
+  </div>
+</nav>
+
+<main id="top">
+
+<!-- Hero: one pinned stage, scroll flies the mission -->
+<section class="mission" id="mission" aria-label="How a Garuda mission works">
+  <div class="stage">
+    <svg class="map" id="heroMap" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <g id="world">
+        <g id="terrain"></g>
+        <path id="zone" d="M430 230 L1250 190 L1290 780 L400 810 Z" fill="rgba(31,181,176,0)" stroke="#1FB5B0" stroke-width="2.5" vector-effect="non-scaling-stroke" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="1"/>
+        <path id="lanes" vector-effect="non-scaling-stroke" fill="none" stroke="#1FB5B0" stroke-opacity=".28" stroke-width="2" stroke-dasharray="6 10"/>
+        <path id="flown" vector-effect="non-scaling-stroke" fill="none" stroke="#1FB5B0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <g id="spot" opacity="0">
+          <circle r="7" fill="#F2F5F7"/>
+          <path d="M-9 9 Q0 4 9 9 L7 22 L-7 22 Z" fill="#F2F5F7"/>
+          <path d="M8 8 L18 -6" stroke="#F2F5F7" stroke-width="4" stroke-linecap="round"/>
+          <path d="M-26 -16 V-26 H-16 M16 -26 H26 V-16 M26 26 V36 H16 M-16 36 H-26 V26" fill="none" stroke="#F4A53C" stroke-width="3"/>
+        </g>
+        <g id="footprint"><rect x="-80" y="-55" width="160" height="110" rx="4" fill="rgba(31,181,176,.10)" stroke="#6FD6D1" stroke-opacity=".7" stroke-width="1.5"/></g>
+        <g id="drop" opacity="0"><rect x="-11" y="-9" width="22" height="18" rx="3" fill="#F2F5F7"/><path d="M-11 -2 H11 M0 -9 V9" stroke="#0B1424" stroke-width="2"/></g>
+        <g id="marker" opacity="0"><rect class="mk" x="-12" y="-12" width="24" height="24" fill="#F4A53C" stroke="#0B1424" stroke-width="3" transform="rotate(45)"/></g>
+        <g id="coord" opacity="0">
+          <rect x="-104" y="22" width="208" height="28" rx="5" fill="#0B1424" stroke="#F4A53C" stroke-width="1.2"/>
+          <text x="0" y="41" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13.5" fill="#F2F5F7">F1 51.34811, 6.56280</text>
+        </g>
+        <g id="drone">
+          <g stroke="#F2F5F7" stroke-width="5" stroke-linecap="round"><path d="M-17 -17 L17 17 M17 -17 L-17 17"/></g>
+          <g fill="#0B1424" stroke="#F2F5F7" stroke-width="3"><circle cx="-19" cy="-19" r="10"/><circle cx="19" cy="-19" r="10"/><circle cx="-19" cy="19" r="10"/><circle cx="19" cy="19" r="10"/></g>
+          <rect x="-8" y="-10" width="16" height="20" rx="4" fill="#F2F5F7"/>
+          <circle cx="0" cy="-6" r="2.5" fill="#1FB5B0"/>
+        </g>
+      </g>
+    </svg>
+    <div class="scrim"></div>
+
+    <figure class="snap" id="snap" aria-hidden="true">
+      <svg viewBox="0 0 300 200" width="300" height="200">
+        <use href="#camArt"/>
+      </svg>
+      <figcaption>
+        <b>D-02 spotted a person</b>
+        <span>The drone holds position and sends this photo.</span>
+        <div class="status" id="snapStatus">Waiting for a responder</div>
+      </figcaption>
+    </figure>
+
+    <div class="panels">
+      <div class="panel on" data-phase="0">
+        <h1><span class="ln"><span>Eyes in the sky</span></span><span class="ln"><span>for every rescue.</span></span></h1>
+        <p class="lede">Garuda drones search disaster zones on their own. You confirm who needs help. They drop the supplies.</p>
+        <p class="cue"><i></i>Scroll to fly a mission</p>
+      </div>
+      <div class="panel" data-phase="1">
+        <h2>Search.</h2>
+        <p>Draw an area on the map. The fleet splits it into lanes and flies every one of them on its own.</p>
+      </div>
+      <div class="panel" data-phase="2">
+        <h2>Verify.</h2>
+        <p>The onboard camera spots a person and sends a photo. A responder decides, never the machine.</p>
+      </div>
+      <div class="panel" data-phase="3">
+        <h2>Deliver.</h2>
+        <p>First aid, water or food lands on the spot. The exact coordinates go to the rescue teams.</p>
+      </div>
+    </div>
+
+    <div class="phase-nav" role="group" aria-label="Mission steps">
+      <button type="button" data-go="1">Search</button>
+      <button type="button" data-go="2">Verify</button>
+      <button type="button" data-go="3">Deliver</button>
+    </div>
+  </div>
+</section>
+
+<!-- shared camera artwork: top-down daylight photo of a flooded street, a person waving from a roof, with the detection box -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <pattern id="roofTiles" width="10" height="8" patternUnits="userSpaceOnUse">
+      <rect width="10" height="8" fill="#7B5547"/>
+      <path d="M0 7.5 H10 M5 0 V7.5" stroke="#5E4036" stroke-width="1"/>
+    </pattern>
+    <pattern id="ripples" width="40" height="16" patternUnits="userSpaceOnUse">
+      <rect width="40" height="16" fill="#4B6670"/>
+      <path d="M2 8 Q10 4 18 8 T34 8" stroke="#5C7983" stroke-width="1.5" fill="none"/>
+    </pattern>
+    <g id="camArt">
+      <rect width="300" height="200" fill="url(#ripples)"/>
+      <circle cx="30" cy="34" r="30" fill="#3F5B3C"/><circle cx="56" cy="20" r="22" fill="#4A6845"/>
+      <circle cx="272" cy="176" r="34" fill="#3F5B3C"/>
+      <rect x="230" y="18" width="52" height="34" rx="3" fill="#8B8F93" transform="rotate(8 256 35)"/>
+      <path d="M200 150 L232 162" stroke="#6B5A48" stroke-width="5" stroke-linecap="round"/>
+      <g transform="rotate(-6 150 104)">
+        <rect x="84" y="56" width="140" height="96" fill="url(#roofTiles)"/>
+        <path d="M84 104 H224" stroke="#4E352C" stroke-width="3"/>
+        <rect x="190" y="64" width="16" height="14" fill="#6A6D70"/>
+      </g>
+      <g transform="translate(146 100)">
+        <ellipse cx="0" cy="16" rx="13" ry="16" fill="#D9573A"/>
+        <path d="M10 6 L24 -12" stroke="#D9573A" stroke-width="7" stroke-linecap="round"/>
+        <circle cx="25" cy="-14" r="4" fill="#C99A78"/>
+        <path d="M-10 8 L-18 20" stroke="#D9573A" stroke-width="7" stroke-linecap="round"/>
+        <circle cx="0" cy="0" r="8.5" fill="#C99A78"/>
+        <path d="M-8 -2 A8.5 8.5 0 0 1 8 -3" stroke="#3A2A22" stroke-width="5" fill="none"/>
+      </g>
+      <path d="M112 72 V62 H124 M184 62 H196 V72 M196 132 V142 H184 M124 142 H112 V132" fill="none" stroke="#F4A53C" stroke-width="3"/>
+      <rect x="112" y="44" width="54" height="17" rx="3" fill="#F4A53C"/>
+      <text x="139" y="56.5" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="11.5" font-weight="600" fill="#0B1424">Person</text>
+    </g>
+  </defs>
+</svg>
+
+<!-- Interactive demo -->
+<section class="demo" id="demo" aria-labelledby="demoTitle">
+  <div class="wrap demo-grid">
+    <div>
+      <h2 id="demoTitle">Your turn. You are the responder.</h2>
+      <p class="demo-intro">Three drones are sweeping a flood zone. Each time one spots a person on camera, it stops and waits for you. Your call decides whether supplies drop.</p>
+      <dl class="tally" aria-live="polite">
+        <div><dt>Found</dt><dd class="found" id="nFound">0</dd></div>
+        <div><dt>Dismissed</dt><dd id="nDismissed">0</dd></div>
+        <div><dt>Checked</dt><dd><span id="nChecked">0</span>/6</dd></div>
+      </dl>
+      <div class="demo-tools">
+        <button class="btn btn-ghost" type="button" id="pauseBtn" aria-pressed="false">Pause drones</button>
+      </div>
+    </div>
+    <div class="screen">
+      <svg id="demoMap" viewBox="0 0 1600 1000" role="img" aria-label="Map of a flood zone with a search area and three drones flying search lanes">
+        <g id="demoTerrain"></g>
+        <path d="M300 150 L1330 130 L1360 860 L280 880 Z" fill="rgba(31,181,176,.05)" stroke="#1FB5B0" stroke-width="2.5" stroke-dasharray="12 9"/>
+        <g id="demoLanes" fill="none" stroke-width="2"></g>
+        <g id="demoMarks"></g>
+        <g id="demoDrones"></g>
+        <g transform="translate(150,880)"><rect x="-28" y="-28" width="56" height="56" rx="8" fill="#111E33" stroke="#F2F5F7" stroke-width="2.5"/><text x="0" y="11" text-anchor="middle" font-family="Montserrat, sans-serif" font-size="30" font-weight="800" fill="#F2F5F7">H</text></g>
+      </svg>
+      <div class="console" id="console" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
+
+<!-- Product -->
+<section class="product" id="product" aria-labelledby="productTitle">
+  <div class="wrap">
+    <div class="product-head">
+      <h2 id="productTitle">Not a mockup. It already works.</h2>
+      <p>Our ground control runs today with simulated ArduPilot drones: area planning, a live fleet, confirm and drop, and an automatic return to base. This is a real screenshot from a simulated mission over Krefeld.</p>
+    </div>
+    <div class="tilt">
+      <figure class="shot" id="shot">
+        <img src="./assets/ac5e2a0e1236d582ea0196243a9dd89e.jpg" width="1600" height="878" alt="Garuda ground control: drone D-02 status on the left, a map with two search sectors and confirmed finds F1 to F6, and a list of confirmed find locations with coordinates on the right" loading="lazy" decoding="async">
+        <span class="pin" style="left:11%;top:7%">1</span>
+        <span class="pin" style="left:44.8%;top:41.5%">2</span>
+        <span class="pin" style="left:88%;top:9%">3</span>
+      </figure>
+    </div>
+    <ol class="notes">
+      <li><i>1</i>Each drone reports battery, satellites and flight time. D-02 has finished sector B and landed.</li>
+      <li><i>2</i>Every confirmed find gets a marker on the map, numbered F1, F2, F3 in the order they were confirmed.</li>
+      <li><i>3</i>Finds are listed with coordinates and the time of the drop, ready to copy or open in OpenStreetMap.</li>
+    </ol>
+    <div class="capab">
+      <h3>What runs in ground control today</h3>
+      <ul>
+        <li>Live fleet on one map</li>
+        <li>Launch only on approval</li>
+        <li>Smart return to base</li>
+        <li>Coordinates for rescue teams</li>
+        <li>Full mission log</li>
+        <li>Search sectors split per drone</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- Team -->
+<section class="team" id="team" aria-labelledby="teamTitle">
+  <div class="wrap">
+    <h2 class="giant" id="teamTitle"><span class="ln"><span>Built in Germany.</span></span><span class="ln"><span>For Germany.</span></span></h2>
+    <div class="team-body">
+      <p>Garuda is the great eagle of Indonesian mythology that sees everything from above. We grew up in a country that knows disasters well.</p>
+      <div>
+        <div class="people">
+          <div class="person"><div class="avatar" aria-hidden="true">F</div><div><strong>Firhan</strong><span>Co-founder. Idea, market, strategy</span></div></div>
+          <div class="person"><div class="avatar" aria-hidden="true">B</div><div><strong>Bagas Arsya</strong><span>Co-founder. Software, ground control</span></div></div>
+        </div>
+        <p class="stack">Built on <b>ArduPilot</b>, <b>MAVLink</b>, <b>ROS 2</b> and <b>Gazebo</b>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Contact -->
+<section class="contact" id="contact" aria-labelledby="contactTitle">
+  <div class="wrap">
+    <h2 id="contactTitle">Let's build it with the people who'll fly it.</h2>
+    <p>Fire brigade, civil protection or aid organisation? Tell us what you need in the field.</p>
+    <a class="mail" href="mailto:auxilium.garuda@gmail.com">auxilium.garuda@gmail.com</a>
+    <div class="contact-actions">
+      <button class="btn btn-ghost" type="button" id="copyBtn">Copy email address</button>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <a class="brand" href="#top" aria-label="Auxilium Technologies, back to top"><img src="./assets/auxilium-icon.svg" alt="" width="28" height="28"><span>AUXILIUM</span></a>
+    <span>Auxilium Technologies, Krefeld 2026</span>
+    <span>Intelligence above. Help beyond.</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+'use strict';
+var NS='http://www.w3.org/2000/svg';
+var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function el(tag,attrs,parent){var n=document.createElementNS(NS,tag);for(var k in attrs)n.setAttribute(k,attrs[k]);if(parent)parent.appendChild(n);return n;}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function lerp(a,b,t){return a+(b-a)*t;}
+function seg(p,a,b){return clamp((p-a)/(b-a),0,1);}
+function ease(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
+function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;var t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+/* Smooth closed curve through points (Catmull-Rom to Bezier) */
+function closedPath(pts){
+  var n=pts.length,d='M'+pts[0][0].toFixed(1)+' '+pts[0][1].toFixed(1);
+  for(var i=0;i<n;i++){
+    var p0=pts[(i-1+n)%n],p1=pts[i],p2=pts[(i+1)%n],p3=pts[(i+2)%n];
+    d+=' C'+(p1[0]+(p2[0]-p0[0])/6).toFixed(1)+' '+(p1[1]+(p2[1]-p0[1])/6).toFixed(1)+' '+(p2[0]-(p3[0]-p1[0])/6).toFixed(1)+' '+(p2[1]-(p3[1]-p1[1])/6).toFixed(1)+' '+p2[0].toFixed(1)+' '+p2[1].toFixed(1);
+  }
+  return d+'Z';
+}
+
+/* Topographic terrain: contour rings around hills, a river, roads, a village */
+function terrain(g,seed,o){
+  var r=rng(seed);
+  o.hills.forEach(function(h){
+    var ph1=r()*6.28,ph2=r()*6.28,ph3=r()*6.28;
+    for(var k=1;k<=h.rings;k++){
+      var rad=h.r*k/h.rings,pts=[];
+      for(var a=0;a<40;a++){
+        var t=a/40*Math.PI*2;
+        var w=1+.2*Math.sin(3*t+ph1+k*.15)+.12*Math.sin(5*t+ph2)+.06*Math.sin(9*t+ph3+k*.3);
+        pts.push([h.x+Math.cos(t)*rad*w*h.sx,h.y+Math.sin(t)*rad*w]);
+      }
+      el('path',{d:closedPath(pts),fill:'none',stroke:k%4===0?'#26395A':'#1A2A42','stroke-width':k%4===0?2.2:1.4,'class':'contour'},g);
+    }
+  });
+  el('path',{d:o.river,fill:'none',stroke:'#123050','stroke-width':40,'stroke-linecap':'round'},g);
+  el('path',{d:o.river,fill:'none',stroke:'#1B4468','stroke-width':2,'stroke-dasharray':'2 16'},g);
+  o.roads.forEach(function(d){el('path',{d:d,fill:'none',stroke:'#1D2C44','stroke-width':9,'stroke-linecap':'round'},g);});
+  o.villages.forEach(function(v){
+    for(var i=0;i<v.n;i++){
+      var x=v.x+(r()-.5)*v.w,y=v.y+(r()-.5)*v.h,w=10+r()*16,hh=8+r()*12;
+      el('rect',{x:x,y:y,width:w,height:hh,fill:'#16243A',transform:'rotate('+(v.rot+(r()-.5)*8)+' '+x+' '+y+')'},g);
+    }
+  });
+}
+
+/* ================= HERO MISSION ================= */
+var heroOpts={
+  hills:[{x:330,y:300,r:330,rings:13,sx:1.25},{x:1250,y:760,r:300,rings:12,sx:1.1},{x:1380,y:180,r:220,rings:9,sx:1},{x:760,y:520,r:170,rings:6,sx:1.4}],
+  river:'M-60 900 C 200 820, 360 880, 560 700 S 880 380, 1120 340 S 1480 180, 1700 120',
+  roads:['M180 -20 L 360 1020','M-20 470 C 400 440, 900 470, 1620 410','M980 -20 C 1000 300, 900 700, 1060 1020'],
+  villages:[{x:640,y:430,w:220,h:120,n:46,rot:-6},{x:1080,y:600,w:180,h:150,n:38,rot:10},{x:300,y:760,w:160,h:110,n:26,rot:4}]
+};
+terrain(document.getElementById('terrain'),7,heroOpts);
+
+/* Lawnmower lanes inside the search zone */
+var lanes=[],y0=270,yStep=86,nl=6;
+for(var i=0;i<nl;i++){var y=y0+i*yStep;lanes.push(i%2===0?[[470,y],[1230,y-18]]:[[1235,y-18],[470,y]]);}
+var laneD='M'+lanes.map(function(l){return l[0][0]+' '+l[0][1]+' L'+l[1][0]+' '+l[1][1];}).join(' L');
+var lanesEl=document.getElementById('lanes'),flown=document.getElementById('flown');
+lanesEl.setAttribute('d',laneD);flown.setAttribute('d',laneD);
+var L=flown.getTotalLength();
+flown.style.strokeDasharray=L;flown.style.strokeDashoffset=L;
+
+/* Target sits on lane 4 (index 3). Find its distance along the path. */
+var target={x:880,y:0};
+(function(){var best=1e9,bl=0;for(var l=0;l<=L;l+=4){var p=flown.getPointAtLength(l);if(Math.abs(p.x-880)<4&&p.y>500&&p.y<560){var d=Math.abs(p.x-880);if(d<best){best=d;bl=l;}}}target.len=bl;var tp=flown.getPointAtLength(bl);target.x=tp.x;target.y=tp.y;})();
+
+var $=function(id){return document.getElementById(id);};
+var world=$('world'),zone=$('zone'),drone=$('drone'),fp=$('footprint'),spot=$('spot'),dropEl=$('drop'),marker=$('marker'),coord=$('coord');
+var snap=$('snap'),tStatus=$('snapStatus');
+spot.setAttribute('transform','translate('+target.x+' '+target.y+')');
+marker.setAttribute('transform','translate('+target.x+' '+target.y+')');
+coord.setAttribute('transform','translate('+target.x+' '+target.y+')');
+var panels=[].slice.call(document.querySelectorAll('.panel'));
+var phaseBtns=[].slice.call(document.querySelectorAll('.phase-nav button'));
+var mission=$('mission');
+var phaseStarts=[0,.12,.5,.72];
+var curPhase=-1;
+
+function setPhase(n){
+  if(n===curPhase)return;curPhase=n;
+  panels.forEach(function(p){p.classList.toggle('on',+p.dataset.phase===n);});
+  phaseBtns.forEach(function(b){if(+b.dataset.go===n)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current');});
+}
+
+function heading(l){var a=flown.getPointAtLength(Math.max(0,l-3)),b=flown.getPointAtLength(Math.min(L,l+3));return Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI+90;}
+
+function renderHero(p){
+  setPhase(p<phaseStarts[1]?0:p<phaseStarts[2]?1:p<phaseStarts[3]?2:3);
+  // zone outline draws in as the search starts
+  var z=seg(p,.05,.18);
+  zone.setAttribute('stroke-dashoffset',(1-z).toFixed(3));
+  zone.setAttribute('fill','rgba(31,181,176,'+(.06*z).toFixed(3)+')');
+  lanesEl.style.opacity=seg(p,.12,.2);
+  // drone flies the lanes up to the target
+  var f=ease(seg(p,.14,.5));
+  var l=f*target.len;
+  var pt=flown.getPointAtLength(l),hd=heading(l||1);
+  flown.style.strokeDashoffset=(L-l).toFixed(1);
+  var showDrone=seg(p,.1,.15);
+  // once it has found someone, the drone backs off so the person stays visible
+  var back=ease(seg(p,.5,.6));
+  var dx=pt.x-70*back,dy=pt.y-34*back;
+  drone.setAttribute('transform','translate('+dx.toFixed(1)+' '+dy.toFixed(1)+') rotate('+(hd*(1-back)+90*back).toFixed(1)+') scale('+(1-.25*back).toFixed(3)+')');
+  drone.style.opacity=showDrone;
+  fp.setAttribute('transform','translate('+pt.x.toFixed(1)+' '+pt.y.toFixed(1)+') rotate('+(hd-90).toFixed(1)+')');
+  fp.style.opacity=showDrone*(1-seg(p,.6,.7));
+  // the person and detection box appear once the camera footprint reaches them
+  var dist=Math.hypot(pt.x-target.x,pt.y-target.y);
+  spot.style.opacity=clamp(1-(dist-40)/120,0,1)*(1-.6*seg(p,.8,.86));
+  // camera pushes in on the find
+  var zm=reduce?0:ease(seg(p,.48,.6))*(1-.35*ease(seg(p,.9,1)));
+  // on phones the photo card sits at the top, so the find is framed lower on screen
+  var shiftY=window.innerWidth<=760?60:0;
+  var cx=lerp(800,target.x,zm),cy=lerp(500,target.y-shiftY,zm),s=lerp(1,1.9,zm);
+  world.setAttribute('transform','translate(800 500) scale('+s.toFixed(3)+') translate('+(-cx).toFixed(1)+' '+(-cy).toFixed(1)+')');
+  // camera photo card
+  snap.classList.toggle('on',p>=.55&&p<.97);
+  var confirmed=p>=.72;
+  tStatus.textContent=confirmed?'Confirmed by a responder. Supplies dropped.':'Waiting for a responder to confirm';
+  tStatus.classList.toggle('ok',confirmed);
+  // supply drop, marker, coordinates
+  var d=seg(p,.74,.82);
+  dropEl.style.opacity=d>0&&d<1?1:0;
+  dropEl.setAttribute('transform','translate('+target.x+' '+lerp(target.y-40,target.y,ease(d))+') scale('+lerp(1.8,1,d).toFixed(2)+')');
+  var m=seg(p,.81,.86);
+  marker.style.opacity=m>0?1:0;
+  marker.firstElementChild.setAttribute('transform','rotate(45) scale('+(m<1?(m*1.2).toFixed(2):1)+')');
+  coord.style.opacity=seg(p,.85,.9);
+}
+
+function heroProgress(){
+  var r=mission.getBoundingClientRect(),span=r.height-window.innerHeight;
+  return clamp(-r.top/span,0,1);
+}
+phaseBtns.forEach(function(b){
+  b.addEventListener('click',function(){
+    var top=mission.getBoundingClientRect().top+window.scrollY;
+    var span=mission.offsetHeight-window.innerHeight;
+    var p=[0,.3,.62,.9][+b.dataset.go];
+    window.scrollTo({top:top+span*p,behavior:reduce?'auto':'smooth'});
+  });
+});
+
+/* Page-load moment: contours draw in, headline lines rise */
+if(!reduce&&window.Element&&Element.prototype.animate){
+  var cs=[].slice.call(document.querySelectorAll('#terrain .contour'));
+  cs.forEach(function(c,i){
+    var len=c.getTotalLength();
+    c.style.strokeDasharray=len;c.style.strokeDashoffset=len;
+    c.animate([{strokeDashoffset:len},{strokeDashoffset:0}],{duration:1800,delay:(i%14)*60,easing:'cubic-bezier(.2,.7,.2,1)',fill:'forwards'}).onfinish=function(){c.style.strokeDasharray='';c.style.strokeDashoffset='';};
+  });
+  [].slice.call(document.querySelectorAll('.panel[data-phase="0"] h1 .ln span')).forEach(function(s,i){
+    s.animate([{transform:'translateY(105%)'},{transform:'none'}],{duration:900,delay:250+i*120,easing:'cubic-bezier(.2,.7,.2,1)',fill:'backwards'});
+  });
+  [].slice.call(document.querySelectorAll('.panel[data-phase="0"] .lede, .panel[data-phase="0"] .cue')).forEach(function(s,i){
+    s.animate([{opacity:0,transform:'translateY(10px)'},{opacity:1,transform:'none'}],{duration:700,delay:650+i*120,easing:'ease',fill:'backwards'});
+  });
+  var cueLine=document.querySelector('.cue i');
+  cueLine.animate([{transform:'scaleX(0)'},{transform:'scaleX(1)'}],{duration:900,delay:900,easing:'cubic-bezier(.2,.7,.2,1)',fill:'backwards'});
+}
+
+/* ================= NAV ================= */
+var nav=$('nav'),menuBtn=$('menuBtn'),navLinks=$('navLinks');
+function closeMenu(){navLinks.classList.remove('open');menuBtn.setAttribute('aria-expanded','false');}
+menuBtn.addEventListener('click',function(){var o=navLinks.classList.toggle('open');menuBtn.setAttribute('aria-expanded',String(o));if(o)nav.classList.add('solid');});
+navLinks.addEventListener('click',function(e){if(e.target.closest('a'))closeMenu();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&navLinks.classList.contains('open')){closeMenu();menuBtn.focus();}});
+
+/* ================= PRODUCT TILT + PINS ================= */
+var shot=$('shot'),pins=[].slice.call(document.querySelectorAll('.pin'));
+function renderShot(){
+  var r=shot.getBoundingClientRect(),vh=window.innerHeight;
+  var t=clamp((vh-r.top)/(vh*.85),0,1);
+  if(reduce)t=1;
+  var e=ease(t);
+  shot.style.transform='rotateX('+(28*(1-e)).toFixed(2)+'deg) scale('+lerp(.88,1,e).toFixed(3)+')';
+  pins.forEach(function(pin,i){pin.classList.toggle('on',t>=.85+i*.05||(reduce&&r.top<vh));});
+}
+
+/* ================= SCROLL LOOP ================= */
+var ticking=false;
+function onScroll(){
+  if(ticking)return;ticking=true;
+  requestAnimationFrame(function(){
+    ticking=false;
+    nav.classList.toggle('solid',window.scrollY>40||navLinks.classList.contains('open'));
+    renderHero(heroProgress());
+    renderShot();
+  });
+}
+window.addEventListener('scroll',onScroll,{passive:true});
+window.addEventListener('resize',onScroll);
+onScroll();
+
+/* Team headline reveal: one mask reveal when it enters */
+var giant=document.querySelector('.giant');
+if(!reduce&&'IntersectionObserver' in window&&giant.getBoundingClientRect().top>window.innerHeight){
+  giant.classList.add('pre');
+  var gio=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){giant.classList.remove('pre');gio.disconnect();}});},{threshold:.3});
+  gio.observe(giant);
+}
+
+/* Copy email */
+var copyBtn=$('copyBtn');
+copyBtn.addEventListener('click',function(){
+  var addr='auxilium.garuda@gmail.com';
+  function ok(){copyBtn.textContent='Copied to clipboard';setTimeout(function(){copyBtn.textContent='Copy email address';},2200);}
+  function fail(){copyBtn.textContent='Copy failed. Select the address above.';setTimeout(function(){copyBtn.textContent='Copy email address';},3200);}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(addr).then(ok,fail);}else{fail();}
+});
+
+/* ================= DEMO ================= */
+terrain($('demoTerrain'),23,{
+  hills:[{x:1200,y:260,r:260,rings:10,sx:1.2},{x:420,y:700,r:240,rings:9,sx:1.3}],
+  river:'M-40 360 C 300 300, 520 520, 800 500 S 1250 760, 1660 700',
+  roads:['M-20 120 L 1620 220','M760 -20 C 700 400, 860 700, 820 1020'],
+  villages:[{x:900,y:300,w:200,h:120,n:34,rot:4},{x:560,y:420,w:160,h:100,n:24,rot:-8}]
+});
+var dLanesG=$('demoLanes'),dDronesG=$('demoDrones'),dMarks=$('demoMarks');
+var routes=[
+  'M360 200 L1290 185 L1294 275 L364 290 L368 380 L1300 365',
+  'M372 470 L1310 455 L1314 545 L376 560 L380 640 L1318 625',
+  'M384 720 L1322 705 L1326 800 L388 815'
+];
+var drones=routes.map(function(d,i){
+  el('path',{d:d,stroke:i===0?'#1FB5B0':'#F2F5F7','stroke-opacity':i===0?.35:.16},dLanesG);
+  var path=el('path',{d:d,fill:'none',stroke:'none'},dLanesG);
+  var g=el('g',{},dDronesG);
+  g.innerHTML='<g transform="scale(1.35)"><g stroke="#F2F5F7" stroke-width="5" stroke-linecap="round"><path d="M-15 -15 L15 15 M15 -15 L-15 15"/></g><g fill="#111E33" stroke="#F2F5F7" stroke-width="3"><circle cx="-17" cy="-17" r="9"/><circle cx="17" cy="-17" r="9"/><circle cx="-17" cy="17" r="9"/><circle cx="17" cy="17" r="9"/></g><rect x="-7" y="-9" width="14" height="18" rx="4" fill="#F2F5F7"/></g>';
+  var label=el('text',{x:0,y:-44,'text-anchor':'middle','font-family':'Montserrat, sans-serif','font-size':24,'font-weight':700,fill:'#F2F5F7'},g);
+  label.textContent='D-0'+(i+1);
+  label.setAttribute('transform','');
+  return {path:path,len:path.getTotalLength(),g:g,label:label,t:[0,.35,.6][i],speed:[1/16,1/12,1/14][i],dir:1,id:'D-0'+(i+1),x:0,y:0};
+});
+
+var S={dets:[],next:0,tick:0,paused:false,running:false};
+var order=[1,0,2,0,1,2];
+var con=$('console'),pauseBtn=$('pauseBtn');
+
+function placeDrone(d,dt){
+  var held=S.dets.some(function(x){return x.status==='pending'&&x.drone===d.id;});
+  if(!held&&!S.paused&&!reduce){
+    d.t+=dt*d.speed*d.dir;
+    if(d.t>=1){d.t=1;d.dir=-1;}else if(d.t<=0){d.t=0;d.dir=1;}
+  }
+  var l=d.t*d.len,a=d.path.getPointAtLength(l),b=d.path.getPointAtLength(clamp(l+3*d.dir,0,d.len));
+  var ang=Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI+90;
+  if(Math.abs(b.x-a.x)+Math.abs(b.y-a.y)<.01)ang=90;
+  d.x=a.x;d.y=a.y;
+  d.g.setAttribute('transform','translate('+a.x.toFixed(1)+' '+a.y.toFixed(1)+')');
+  d.g.firstElementChild.setAttribute('transform','rotate('+ang.toFixed(1)+') scale(1.35)');
+}
+var last=0;
+function loop(ts){
+  var dt=last?Math.min((ts-last)/1000,.1):0;last=ts;
+  drones.forEach(function(d){placeDrone(d,dt);});
+  if(S.running)requestAnimationFrame(loop);
+}
+
+function renderMarks(){
+  dMarks.innerHTML='';var n=0;
+  S.dets.forEach(function(d){
+    var g=el('g',{transform:'translate('+d.x.toFixed(1)+' '+d.y.toFixed(1)+')'},dMarks);
+    if(d.status==='pending'){
+      el('circle',{r:26,fill:'none',stroke:'#F4A53C','stroke-width':3,'class':'mk-ping'},g);
+      el('circle',{r:13,fill:'#F4A53C',stroke:'#0B1424','stroke-width':3},g);
+    }else if(d.status==='found'){
+      n++;
+      el('rect',{x:-12,y:-12,width:24,height:24,fill:'#F4A53C',stroke:'#0B1424','stroke-width':3,'class':d.fresh?'mk-pop':'',transform:'rotate(45)'},g);
+      var t=el('text',{x:22,y:9,'font-family':'Montserrat, sans-serif','font-size':26,'font-weight':800,fill:'#F2F5F7',stroke:'#0B1424','stroke-width':6,'paint-order':'stroke'},g);t.textContent='F'+n;
+      d.fresh=false;
+    }else{
+      el('circle',{r:8,fill:'#4A5C76'},g);
+    }
+  });
+}
+
+function renderConsole(){
+  var pend=S.dets.filter(function(d){return d.status==='pending';})[0];
+  var found=S.dets.filter(function(d){return d.status==='found';}).length;
+  var rej=S.dets.filter(function(d){return d.status==='rejected';}).length;
+  $('nFound').textContent=found;$('nDismissed').textContent=rej;$('nChecked').textContent=found+rej;
+  var done=!pend&&S.next>=order.length;
+  if(pend){
+    con.innerHTML='<div class="ask"><svg viewBox="0 0 300 200" role="img" aria-label="Drone camera photo of a person waving from a roof in a flooded street"><use href="#camArt"/></svg><div><b>'+pend.drone+' spotted a person</b><strong>Is this a person who needs help?</strong><small>The drone is holding position.</small></div><div class="acts"><button class="btn btn-primary" type="button" data-act="found">Yes, drop supplies</button><button class="btn btn-ghost" type="button" data-act="rejected">No, keep searching</button></div></div>';
+  }else if(done){
+    con.innerHTML='<div class="done"><div><b>Area cleared</b><strong>'+(found===0?'Nobody confirmed. No supplies dropped.':found+(found===1?' person':' people')+' found and supplied. Locations sent to rescue teams.')+'</strong></div><button class="btn btn-primary" type="button" data-act="restart">Fly the mission again</button></div>';
+  }else{
+    var msgs=['Sweeping the search area','Scanning lane by lane','Looking for people'];
+    con.innerHTML='<div class="idle"><span class="sweep" aria-hidden="true"'+(S.paused?' style="animation:none"':'')+'></span><div><b>'+(S.paused?'Drones paused':'3 drones airborne')+'</b><strong>'+(S.paused?'Press "Resume drones" to continue.':msgs[S.tick%3])+'</strong></div></div>';
+  }
+}
+con.addEventListener('click',function(e){
+  var b=e.target.closest('button');if(!b)return;
+  var act=b.dataset.act;
+  if(act==='restart'){S.dets=[];S.next=0;renderMarks();renderConsole();return;}
+  S.dets.forEach(function(d){if(d.status==='pending'){d.status=act;d.fresh=act==='found';}});
+  renderMarks();renderConsole();
+});
+function tick(){
+  if(S.paused)return;
+  var pending=S.dets.some(function(d){return d.status==='pending';});
+  if(!pending&&S.next<order.length){
+    var d=drones[order[S.next]];
+    S.dets.push({x:d.x,y:d.y,drone:d.id,status:'pending'});S.next++;
+    renderMarks();
+  }else{S.tick++;}
+  renderConsole();
+}
+pauseBtn.addEventListener('click',function(){
+  S.paused=!S.paused;
+  pauseBtn.textContent=S.paused?'Resume drones':'Pause drones';
+  pauseBtn.setAttribute('aria-pressed',String(S.paused));
+  renderConsole();
+});
+drones.forEach(function(d){placeDrone(d,0);});
+renderConsole();
+
+/* Start drones only while the demo is on screen */
+var demo=$('demo'),timer=null;
+function start(){if(S.running)return;S.running=true;last=0;requestAnimationFrame(loop);if(!timer){timer=setInterval(tick,2600);setTimeout(tick,1200);}}
+function stop(){S.running=false;}
+if('IntersectionObserver' in window){
+  new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting)start();else stop();});},{threshold:.2}).observe(demo);
+}else{start();}
+})();
+</script>
+</body>
+</html>
