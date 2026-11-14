@@ -160,6 +160,12 @@ p{margin:0}
 @media (max-width:860px){.notes{grid-template-columns:1fr}}
 .notes li{display:grid;grid-template-columns:30px 1fr;gap:14px;align-items:start;font-size:16px;color:var(--slate)}
 .notes li i{font:normal 700 14px/30px var(--display);width:30px;height:30px;border-radius:50%;text-align:center;border:1px solid var(--heat);color:var(--heat)}
+.access{margin-top:88px;display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:32px 64px;align-items:center}
+@media (max-width:860px){.access{grid-template-columns:1fr}}
+.access-shot{margin:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--deep)}
+.access-shot img{width:100%;height:auto}
+.access h3{font-size:clamp(26px,2.6vw,34px);font-weight:800;line-height:1.1}
+.access p{margin-top:16px;color:var(--slate);max-width:440px}
 .capab{margin-top:72px;display:grid;grid-template-columns:minmax(0,4fr) minmax(0,8fr);gap:24px 64px}
 @media (max-width:860px){.capab{grid-template-columns:1fr}}
 .capab h3{font-size:24px;font-weight:700;line-height:1.2}
@@ -368,21 +374,31 @@ footer{border-top:1px solid var(--line)}
   <div class="wrap">
     <div class="product-head">
       <h2 id="productTitle">Not a mockup. It already works.</h2>
-      <p>Our ground control runs today with simulated ArduPilot drones: area planning, a live fleet, confirm and drop, and an automatic return to base. This is a real screenshot from a simulated mission over Krefeld.</p>
+      <p>This is our real ground control software in a simulated mission over Krefeld: four simulated ArduPilot drones, each searching its own sector. The interface is in German, built for German emergency teams.</p>
     </div>
     <div class="tilt">
       <figure class="shot" id="shot">
-        <img src="./assets/ac5e2a0e1236d582ea0196243a9dd89e.jpg" width="1600" height="878" alt="Garuda ground control: drone D-02 status on the left, a map with two search sectors and confirmed finds F1 to F6, and a list of confirmed find locations with coordinates on the right" loading="lazy" decoding="async">
-        <span class="pin" style="left:11%;top:7%">1</span>
-        <span class="pin" style="left:44.8%;top:41.5%">2</span>
-        <span class="pin" style="left:88%;top:9%">3</span>
+        <img src="./assets/ground-control-mission.jpg" width="2400" height="1500" alt="Garuda ground control during a mission: fleet list with four drones on the left, a map of Krefeld with four search sectors, drone routes and confirmed finds F1 and F2, and on the right a report from drone D-04 with a camera photo of a person, AI confidence 72 percent and the buttons Opfer bestätigen and Kein Opfer" loading="lazy" decoding="async">
+        <span class="pin" style="left:17%;top:19%">1</span>
+        <span class="pin" style="left:47.6%;top:64.5%">2</span>
+        <span class="pin" style="left:79%;top:15%">3</span>
       </figure>
     </div>
     <ol class="notes">
-      <li><i>1</i>Each drone reports battery, satellites and flight time. D-02 has finished sector B and landed.</li>
-      <li><i>2</i>Every confirmed find gets a marker on the map, numbered F1, F2, F3 in the order they were confirmed.</li>
-      <li><i>3</i>Finds are listed with coordinates and the time of the drop, ready to copy or open in OpenStreetMap.</li>
+      <li><i>1</i>The whole fleet at a glance: battery, satellites, flight time and what each drone is doing right now.</li>
+      <li><i>2</i>Each drone flies its own sector. Confirmed finds are marked F1, F2 on the map, and supplies are dropped there.</li>
+      <li><i>3</i>When the camera spots a person, the drone waits. The photo and AI confidence appear here, and a responder confirms or rejects.</li>
     </ol>
+    <div class="access">
+      <figure class="access-shot">
+        <img src="./assets/ground-control-login.jpg" width="2400" height="1500" alt="Garuda ground control login page with the Garuda logo, the line Bodenstation für Such- und Rettungsflüge, and a sign-in form with username and password" loading="lazy" decoding="async">
+      </figure>
+      <div>
+        <h3>Only the right people can fly</h3>
+        <p>Every user signs in with a role: observer, operator or incident commander. Buttons a role is not allowed to use stay hidden, and the ground station rejects those commands anyway.</p>
+        <p>Every command is logged with who sent it, including failed logins and rejected commands.</p>
+      </div>
+    </div>
     <div class="capab">
       <h3>What runs in ground control today</h3>
       <ul>
